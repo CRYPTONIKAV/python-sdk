@@ -1,7 +1,7 @@
 """Direct unit tests for StreamableHTTPServerTransport._check_content_type.
 
-Covers the transport-level 415 path (pragma: no cover through the public
-entry, since the security middleware rejects non-JSON first) for
+Covers the transport-level 415 path (unreachable through the public entry,
+since the security middleware rejects non-JSON first) for
 modelcontextprotocol/python-sdk#3670. Media types are case-insensitive
 (RFC 9110 §8.3.1).
 """
