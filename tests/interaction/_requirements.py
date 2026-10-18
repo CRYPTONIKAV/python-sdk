@@ -3134,9 +3134,10 @@ REQUIREMENTS: dict[str, Requirement] = {
         note="Only observable over HTTP: 415 is an HTTP status code.",
         divergence=Divergence(
             note=(
-                "The transport-security middleware rejects a non-JSON Content-Type with 400 'Invalid "
-                "Content-Type header' before the request reaches the transport, so the transport's own 415 "
-                "path is unreachable through any public entry point."
+                "The transport-security middleware rejects a Content-Type that does not start with "
+                "'application/json' with 400 'Invalid Content-Type header' before the request reaches "
+                "the transport, so the transport's own 415 answers only the lookalike media types "
+                "that share that prefix, such as 'application/json-patch+json'."
             ),
         ),
     ),

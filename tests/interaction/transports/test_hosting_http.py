@@ -120,8 +120,8 @@ async def test_missing_accept_media_types_return_406() -> None:
 async def test_non_json_content_type_is_rejected() -> None:
     """A POST with a non-JSON Content-Type is rejected before reaching the transport.
 
-    See the divergence on the requirement: the security middleware rejects with 400, so the
-    transport's own 415 path is unreachable through any public entry point.
+    Provenance: pins the middleware's gate - it answers 400 to any media type that does not start
+    with application/json, while the transport's own 415 answers the lookalikes that share it.
     """
     async with mounted_app(_server()) as (http, _):
         response = await http.post(
@@ -129,6 +129,49 @@ async def test_non_json_content_type_is_rejected() -> None:
         )
 
     assert (response.status_code, response.text) == snapshot((400, "Invalid Content-Type header"))
+
+
+@requirement("hosting:http:content-type-415")
+async def test_mixed_case_json_content_type_completes_the_handshake() -> None:
+    """Media types are case-insensitive (RFC 9110 section 8.3.1), so mixed case reaches the handler.
+
+    Provenance: pins a fixed gap - the middleware case-folded while the transport compared
+    verbatim, so 'Application/JSON' passed the lenient check and was answered 415 by the strict one.
+    """
+    variants = ("Application/JSON", "application/JSON; charset=utf-8", "APPLICATION/JSON")
+
+    async with mounted_app(_server()) as (http, _):
+        responses = [
+            await http.post("/mcp", json=initialize_body(), headers=base_headers() | {"content-type": variant})
+            for variant in variants
+        ]
+
+    assert [(int(r.status_code), r.headers.get("mcp-session-id") is not None) for r in responses] == snapshot(
+        [(200, True), (200, True), (200, True)]
+    )
+
+
+@requirement("hosting:http:content-type-415")
+async def test_content_type_media_type_match_stays_exact() -> None:
+    """Case-insensitivity does not widen the match: a lookalike media type is still answered 415.
+
+    Provenance: pins preserved strictness - these share the application/json prefix, so the
+    middleware lets them through and the transport's own 415 is what answers them.
+    """
+    variants = ("application/json-patch+json", "APPLICATION/JSONX")
+
+    async with mounted_app(_server()) as (http, _):
+        responses = [
+            await http.post("/mcp", json=initialize_body(), headers=base_headers() | {"content-type": variant})
+            for variant in variants
+        ]
+
+    assert [(int(r.status_code), r.json()["error"]["message"]) for r in responses] == snapshot(
+        [
+            (415, "Unsupported Media Type: Content-Type must be application/json"),
+            (415, "Unsupported Media Type: Content-Type must be application/json"),
+        ]
+    )
 
 
 @requirement("hosting:http:parse-error-400")
